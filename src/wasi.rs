@@ -28,7 +28,7 @@ pub fn set_term_mode(_term: &TermMode) -> Result<(), Error> { Ok(()) }
 #[allow(clippy::unnecessary_wraps)] // Result required on other platforms
 pub fn enable_raw_mode() -> Result<TermMode, Error> { Ok(TermMode {}) }
 
-pub fn stdin() -> std::io::Result<std::fs::File> { std::fs::File::open("/dev/tty") }
+pub fn stdin() -> std::io::Result<std::io::Stdin> { Ok(std::io::stdin()) }
 
 pub fn path(filename: &str) -> std::path::PathBuf {
     // If the filename is absolute then it starts with a forward slash and we
