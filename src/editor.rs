@@ -814,7 +814,7 @@ enum PromptState {
 /// Process a prompt keypress event and return the new state for the prompt.
 fn process_prompt_keypress(mut buffer: String, key: &Key) -> PromptState {
     match key {
-        Key::Char(b'\r') => return PromptState::Completed(buffer),
+        Key::Char(b'\r' | b'\n') => return PromptState::Completed(buffer),
         Key::Escape | Key::Char(EXIT) => return PromptState::Cancelled,
         Key::Char(BACKSPACE | DELETE_BIS) => {
             buffer.pop();
