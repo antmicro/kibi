@@ -222,11 +222,21 @@ impl Editor {
     /// we handle ANSI escape codes to return `Key::Delete`, `Key::Home` etc.
     fn loop_until_keypress(&mut self) -> Result<Key, Error> {
         loop {
+            #[cfg(target_os = "wasi")]
+            let stdin_data = sys::wait_for_event()?;
+
             // Handle window size if a signal has be received
             if sys::has_window_size_changed() {
                 self.update_window_size()?;
                 self.refresh_screen()?;
             }
+
+            #[cfg(target_os = "wasi")]
+            if !stdin_data {
+                // Wasi implementation will block until there occur data on stdin
+                continue;
+            }
+
             let mut bytes = sys::stdin()?.bytes();
             // Match on the next byte received or, if the first byte is <ESC> ('\x1b'), on the next
             // few bytes.

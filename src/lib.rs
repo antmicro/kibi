@@ -21,4 +21,4 @@ mod terminal;
 
 #[cfg(target_os = "wasi")] mod wasi;
 #[cfg(target_os = "wasi")] mod xdg;
-#[cfg(target_os = "wasi")] use wasi as sys;
+#[cfg(target_os = "wasi")] use crate::wasi as sys;
