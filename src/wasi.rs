@@ -10,9 +10,10 @@ use std::io::{self, Read};
 use std::mem;
 use std::os::wasi::io::{AsRawFd, FromRawFd, RawFd};
 use std::sync::Mutex;
-extern crate wasi as wasi_snapshot;
 
-use crossterm::terminal;
+use sscanf::scanf;
+
+extern crate wasi as wasi_snapshot;
 
 pub struct TermMode {}
 
@@ -150,7 +151,20 @@ static INTERNAL_EVENT_READER: Mutex<Option<InternalEventSource>> = Mutex::new(No
 /// Return the current window size as (rows, columns).
 /// By returning an error we cause kibi to fall back to another method of getting the window size
 pub fn get_window_size() -> Result<(usize, usize), Error> {
-    let size = terminal::size()?;
+    let hterm_screen = match wasi_ext_lib::hterm("screenSize", None) {
+        Ok(s) => s,
+        Err(e) => return Err(Error::Io(io::Error::from_raw_os_error(e)))
+    };
+    let value = hterm_screen.unwrap();
+    let size = match scanf!(value, "[hterm.Size: {}, {}]", u16, u16) {
+        Ok(size) => size,
+        Err(_) => {
+            return Err(Error::Io(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Cannot obtain terminal window size with hterm custom syscall"
+            )));
+        }
+    };
     Ok((size.1 as usize, size.0 as usize))
 }
 
