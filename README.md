@@ -195,7 +195,7 @@ kibi --version    # Print version information and exit
 | Ctrl-S            | Save the buffer to the current file, or specify the file path |
 | Ctrl-G            | Go to `<line number>[:<column number>]` position              |
 | Ctrl-Q            | Quit                                                          |
-| Ctrl-D            | Duplicate the current row                                     |
+| Ctrl-A            | Duplicate the current row                                     |
 | Ctrl-E            | Execute an external command and paste its output              |
 | Ctrl-R            | Remove an entire line                                         |
 

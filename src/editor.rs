@@ -15,13 +15,13 @@ const REFRESH_SCREEN: u8 = ctrl_key(b'L');
 const SAVE: u8 = ctrl_key(b'S');
 const FIND: u8 = ctrl_key(b'F');
 const GOTO: u8 = ctrl_key(b'G');
-const DUPLICATE: u8 = ctrl_key(b'D');
+const DUPLICATE: u8 = ctrl_key(b'A');
 const EXECUTE: u8 = ctrl_key(b'E');
 const REMOVE_LINE: u8 = ctrl_key(b'R');
 const BACKSPACE: u8 = 127;
 
 const HELP_MESSAGE: &str =
-    "Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-G = go to | Ctrl-D = duplicate | Ctrl-E = execute";
+    "Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-G = go to | Ctrl-A = duplicate | Ctrl-E = execute";
 
 /// `set_status!` sets a formatted status message for the editor.
 /// Example usage: `set_status!(editor, "{} written to {}", file_size, file_name)`
