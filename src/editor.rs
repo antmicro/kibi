@@ -15,13 +15,13 @@ const REFRESH_SCREEN: u8 = ctrl_key(b'L');
 const SAVE: u8 = ctrl_key(b'S');
 const FIND: u8 = ctrl_key(b'F');
 const GOTO: u8 = ctrl_key(b'G');
-const DUPLICATE: u8 = ctrl_key(b'D');
+const DUPLICATE: u8 = ctrl_key(b'A');
 const EXECUTE: u8 = ctrl_key(b'E');
 const REMOVE_LINE: u8 = ctrl_key(b'R');
 const BACKSPACE: u8 = 127;
 
 const HELP_MESSAGE: &str =
-    "Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-G = go to | Ctrl-D = duplicate | Ctrl-E = execute";
+    "Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-G = go to | Ctrl-A = duplicate | Ctrl-E = execute";
 
 /// `set_status!` sets a formatted status message for the editor.
 /// Example usage: `set_status!(editor, "{} written to {}", file_size, file_name)`
@@ -222,11 +222,21 @@ impl Editor {
     /// we handle ANSI escape codes to return `Key::Delete`, `Key::Home` etc.
     fn loop_until_keypress(&mut self) -> Result<Key, Error> {
         loop {
+            #[cfg(target_os = "wasi")]
+            let stdin_data = sys::wait_for_event()?;
+
             // Handle window size if a signal has be received
             if sys::has_window_size_changed() {
                 self.update_window_size()?;
                 self.refresh_screen()?;
             }
+
+            #[cfg(target_os = "wasi")]
+            if !stdin_data {
+                // Wasi implementation will block until there occur data on stdin
+                continue;
+            }
+
             let mut bytes = sys::stdin()?.bytes();
             // Match on the next byte received or, if the first byte is <ESC> ('\x1b'), on the next
             // few bytes.
@@ -814,7 +824,7 @@ enum PromptState {
 /// Process a prompt keypress event and return the new state for the prompt.
 fn process_prompt_keypress(mut buffer: String, key: &Key) -> PromptState {
     match key {
-        Key::Char(b'\r') => return PromptState::Completed(buffer),
+        Key::Char(b'\r' | b'\n') => return PromptState::Completed(buffer),
         Key::Escape | Key::Char(EXIT) => return PromptState::Cancelled,
         Key::Char(BACKSPACE | DELETE_BIS) => {
             buffer.pop();
