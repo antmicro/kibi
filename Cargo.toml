@@ -19,7 +19,6 @@ unicode-width = "0.1.10"
 libc = "0.2.137"
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-sscanf = "0.3.1"
 wasi = "0.11.0+wasi-snapshot-preview1"
 wasi_ext_lib = { git = "https://github.com/antmicro/wasi_ext_lib.git", branch = "main", features = ["hterm"] }
 
