@@ -13,7 +13,7 @@ use std::sync::Mutex;
 
 extern crate wasi as wasi_snapshot;
 
-pub struct TermMode {}
+pub use wasi_ext_lib::termios::termios as TermMode;
 
 const STDIN: RawFd = 0x0;
 
@@ -186,11 +186,37 @@ pub fn has_window_size_changed() -> bool {
 
 /// Set the terminal mode. On WASI platforms, this does nothing.
 #[allow(clippy::unnecessary_wraps)] // Result required on other platforms
-pub fn set_term_mode(_term: &TermMode) -> Result<(), Error> { Ok(()) }
+pub fn set_term_mode(term: &TermMode) -> Result<(), Error> { 
+    if let Err(code) = wasi_ext_lib::tcsetattr(
+        STDIN as wasi::Fd,
+        wasi_ext_lib::TcsetattrAction::TCSANOW,
+        term
+    ) {
+        Err(Error::Io(
+            std::io::Error::from_raw_os_error(code)
+        ))
+    } else {
+        Ok(())
+    }
+}
 
 // Opening the file /dev/tty is effectively the same as `raw_mode`
 #[allow(clippy::unnecessary_wraps)] // Result required on other platforms
-pub fn enable_raw_mode() -> Result<TermMode, Error> { Ok(TermMode {}) }
+pub fn enable_raw_mode() -> Result<TermMode, Error> {
+    let original_termios = wasi_ext_lib::tcgetattr(STDIN as wasi::Fd)
+        .expect("Cannot get STDIN termios flag");
+
+    let mut raw_termios = original_termios.clone();
+    wasi_ext_lib::cfmakeraw(&mut raw_termios);
+
+    wasi_ext_lib::tcsetattr(
+        STDIN as wasi::Fd,
+        wasi_ext_lib::TcsetattrAction::TCSANOW,
+        &raw_termios
+    ).expect("Cannot set raw mode at STDIN");
+
+     Ok(original_termios) 
+}
 
 pub fn stdin() -> std::io::Result<std::io::Stdin> { Ok(std::io::stdin()) }
 
