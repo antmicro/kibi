@@ -149,9 +149,8 @@ static INTERNAL_EVENT_READER: Mutex<Option<InternalEventSource>> = Mutex::new(No
 /// Return the current window size as (rows, columns).
 /// By returning an error we cause kibi to fall back to another method of getting the window size
 pub fn get_window_size() -> Result<(usize, usize), Error> {
-    let mut size = [0i32; 2];
-    match wasi_ext_lib::ioctl(io::stdin().as_raw_fd(), wasi_ext_lib::IoctlNum::GetScreenSize , Some(&mut size)) {
-        Ok(()) => Ok((size[1] as usize, size[0] as usize)),
+    match wasi_ext_lib::tcgetwinsize(STDIN as wasi::Fd) {
+        Ok(winsize) => Ok((winsize.ws_row as usize, winsize.ws_col as usize)),
         Err(e) => return Err(Error::Io(io::Error::from_raw_os_error(e)))
     }
 }
@@ -201,7 +200,7 @@ pub fn set_term_mode(term: &TermMode) -> Result<(), Error> {
 }
 
 // Opening the file /dev/tty is effectively the same as `raw_mode`
-#[allow(clippy::unnecessary_wraps)] // Result required on other platforms
+#[allow(clippy::unnecessary_wraps)]
 pub fn enable_raw_mode() -> Result<TermMode, Error> {
     let original_termios = wasi_ext_lib::tcgetattr(STDIN as wasi::Fd)
         .expect("Cannot get STDIN termios flag");
