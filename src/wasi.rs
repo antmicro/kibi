@@ -192,7 +192,7 @@ pub fn set_term_mode(term: &TermMode) -> Result<(), Error> {
         term
     ) {
         Err(Error::Io(
-            std::io::Error::from_raw_os_error(code)
+            io::Error::from_raw_os_error(code)
         ))
     } else {
         Ok(())
@@ -202,19 +202,25 @@ pub fn set_term_mode(term: &TermMode) -> Result<(), Error> {
 // Opening the file /dev/tty is effectively the same as `raw_mode`
 #[allow(clippy::unnecessary_wraps)]
 pub fn enable_raw_mode() -> Result<TermMode, Error> {
-    let original_termios = wasi_ext_lib::tcgetattr(STDIN as wasi::Fd)
-        .expect("Cannot get STDIN termios flag");
+    let original_termios = match wasi_ext_lib::tcgetattr(STDIN as wasi::Fd) {
+        Ok(term) => term,
+        Err(e) => return Err(
+            Error::Io(io::Error::from_raw_os_error(e))
+        )
+    };
 
     let mut raw_termios = original_termios.clone();
     wasi_ext_lib::cfmakeraw(&mut raw_termios);
 
-    wasi_ext_lib::tcsetattr(
+    if let Err(e) = wasi_ext_lib::tcsetattr(
         STDIN as wasi::Fd,
         wasi_ext_lib::TcsetattrAction::TCSANOW,
         &raw_termios
-    ).expect("Cannot set raw mode at STDIN");
-
-     Ok(original_termios) 
+    ) {
+        Err(Error::Io(io::Error::from_raw_os_error(e)))
+    } else {
+        Ok(original_termios) 
+    }
 }
 
 pub fn stdin() -> std::io::Result<std::io::Stdin> { Ok(std::io::stdin()) }
