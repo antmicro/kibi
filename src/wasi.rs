@@ -2,14 +2,14 @@
 //!
 //! WASI-specific structs and functions. Will be imported as `sys` on WASI systems.
 
-pub use crate::xdg::*;
-use crate::Error;
-
 use std::fs::File;
 use std::io::{self, Read};
 use std::mem;
 use std::os::wasi::io::{AsRawFd, FromRawFd, RawFd};
 use std::sync::Mutex;
+
+pub use crate::xdg::*;
+use crate::Error;
 
 extern crate wasi as wasi_snapshot;
 
@@ -32,17 +32,17 @@ impl InternalEventSource {
         // returns true if stdin has data to read
         let mut is_data_to_read = false;
 
-        let subs = vec![
+        let subs = [
             wasi::Subscription {
                 userdata: TTY_TOKEN,
                 u: wasi::SubscriptionU {
                     tag: wasi::EVENTTYPE_FD_READ.raw(),
                     u: wasi::SubscriptionUU {
                         fd_read: wasi::SubscriptionFdReadwrite {
-                            file_descriptor: self.tty_input.as_raw_fd() as u32
-                        }
-                    }
-                }
+                            file_descriptor: self.tty_input.as_raw_fd() as u32,
+                        },
+                    },
+                },
             },
             wasi::Subscription {
                 userdata: RESIZE_TOKEN,
@@ -50,21 +50,16 @@ impl InternalEventSource {
                     tag: wasi::EVENTTYPE_FD_READ.raw(),
                     u: wasi::SubscriptionUU {
                         fd_read: wasi::SubscriptionFdReadwrite {
-                            file_descriptor: self.event_src.as_raw_fd() as u32
-                        }
-                    }
-                }
+                            file_descriptor: self.event_src.as_raw_fd() as u32,
+                        },
+                    },
+                },
             },
         ];
 
         // subscribe and wait
-        let result = unsafe {
-            wasi::poll_oneoff(
-                subs.as_ptr(),
-                self.events.as_mut_ptr(),
-                subs.len()
-            )
-        };
+        let result =
+            unsafe { wasi::poll_oneoff(subs.as_ptr(), self.events.as_mut_ptr(), subs.len()) };
 
         let events_count = match result {
             Ok(n) => n,
@@ -85,12 +80,11 @@ impl InternalEventSource {
                 (TTY_TOKEN, wasi::EVENTTYPE_FD_READ) => {
                     let to_read = event.fd_readwrite.nbytes as usize;
                     is_data_to_read = to_read > 0;
-                },
+                }
                 (RESIZE_TOKEN, wasi::EVENTTYPE_FD_READ) => {
                     let to_read = event.fd_readwrite.nbytes as usize;
-                    let mut read_buff: [u8; wasi_ext_lib::WASI_EVENTS_MASK_SIZE] = [
-                        0u8; wasi_ext_lib::WASI_EVENTS_MASK_SIZE
-                    ];
+                    let mut read_buff: [u8; wasi_ext_lib::WASI_EVENTS_MASK_SIZE] =
+                        [0u8; wasi_ext_lib::WASI_EVENTS_MASK_SIZE];
 
                     if let Err(e) = self.event_src.read(&mut read_buff[0..to_read]) {
                         return Err(Error::Io(e));
@@ -101,7 +95,7 @@ impl InternalEventSource {
                     if events & wasi_ext_lib::WASI_EVENT_WINCH != 0 {
                         self.resize_occurred = true;
                     }
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -113,26 +107,21 @@ impl InternalEventSource {
 impl Default for InternalEventSource {
     fn default() -> Self {
         let input_fd = STDIN;
-        let fd_stats = unsafe {
-            wasi::fd_fdstat_get(input_fd as u32).expect(
-                "Cannot obtain stdin metadata!"
-            )
-        };
+        let fd_stats =
+            unsafe { wasi::fd_fdstat_get(input_fd as u32).expect("Cannot obtain stdin metadata!") };
 
         // In the wash stdin is char-device with read right
         // Crossterm crate won't panic even if we return Err here
-        if fd_stats.fs_filetype != wasi::FILETYPE_CHARACTER_DEVICE ||
-            (fd_stats.fs_rights_base & wasi::RIGHTS_FD_READ) == 0 {
+        if fd_stats.fs_filetype != wasi::FILETYPE_CHARACTER_DEVICE
+            || (fd_stats.fs_rights_base & wasi::RIGHTS_FD_READ) == 0
+        {
             panic!("Polling from fd={} not possible!", input_fd);
         }
 
         // Obtain hterm event source
         let event_source_fd = {
-            wasi_ext_lib::event_source_fd(
-                wasi_ext_lib::WASI_EVENT_WINCH
-            ).expect(
-                "Cannot obtain EvenSource file descriptor!"
-            )
+            wasi_ext_lib::event_source_fd(wasi_ext_lib::WASI_EVENT_WINCH)
+                .expect("Cannot obtain EvenSource file descriptor!")
         };
 
         InternalEventSource {
@@ -151,7 +140,7 @@ static INTERNAL_EVENT_READER: Mutex<Option<InternalEventSource>> = Mutex::new(No
 pub fn get_window_size() -> Result<(usize, usize), Error> {
     match wasi_ext_lib::tcgetwinsize(STDIN as wasi::Fd) {
         Ok(winsize) => Ok((winsize.ws_row as usize, winsize.ws_col as usize)),
-        Err(e) => return Err(Error::Io(io::Error::from_raw_os_error(e)))
+        Err(e) => Err(Error::Io(io::Error::from_raw_os_error(e))),
     }
 }
 
@@ -159,18 +148,18 @@ pub fn get_window_size() -> Result<(usize, usize), Error> {
 /// platforms, this does nothing.
 #[allow(clippy::unnecessary_wraps)] // Result required on other platforms
 pub fn register_winsize_change_signal_handler() -> Result<(), Error> {
-    INTERNAL_EVENT_READER.lock().expect(
-        "Cannot lock internal event source object!"
-    ).get_or_insert_with(InternalEventSource::default);
+    INTERNAL_EVENT_READER
+        .lock()
+        .expect("Cannot lock internal event source object!")
+        .get_or_insert_with(InternalEventSource::default);
     Ok(())
 }
 
 /// Check if the windows size has changed since the last call to this function. On WASI platforms,
 /// this always return false.
 pub fn has_window_size_changed() -> bool {
-    let mut guard = INTERNAL_EVENT_READER.lock().expect(
-        "Cannot lock internal event source object!"
-    );
+    let mut guard =
+        INTERNAL_EVENT_READER.lock().expect("Cannot lock internal event source object!");
 
     let result;
     if let Some(reader) = &mut *guard {
@@ -185,15 +174,11 @@ pub fn has_window_size_changed() -> bool {
 
 /// Set the terminal mode. On WASI platforms, this does nothing.
 #[allow(clippy::unnecessary_wraps)] // Result required on other platforms
-pub fn set_term_mode(term: &TermMode) -> Result<(), Error> { 
-    if let Err(code) = wasi_ext_lib::tcsetattr(
-        STDIN as wasi::Fd,
-        wasi_ext_lib::TcsetattrAction::TCSANOW,
-        term
-    ) {
-        Err(Error::Io(
-            io::Error::from_raw_os_error(code)
-        ))
+pub fn set_term_mode(term: &TermMode) -> Result<(), Error> {
+    if let Err(code) =
+        wasi_ext_lib::tcsetattr(STDIN as wasi::Fd, wasi_ext_lib::TcsetattrAction::TCSANOW, term)
+    {
+        Err(Error::Io(io::Error::from_raw_os_error(code)))
     } else {
         Ok(())
     }
@@ -204,22 +189,20 @@ pub fn set_term_mode(term: &TermMode) -> Result<(), Error> {
 pub fn enable_raw_mode() -> Result<TermMode, Error> {
     let original_termios = match wasi_ext_lib::tcgetattr(STDIN as wasi::Fd) {
         Ok(term) => term,
-        Err(e) => return Err(
-            Error::Io(io::Error::from_raw_os_error(e))
-        )
+        Err(e) => return Err(Error::Io(io::Error::from_raw_os_error(e))),
     };
 
-    let mut raw_termios = original_termios.clone();
+    let mut raw_termios = original_termios;
     wasi_ext_lib::cfmakeraw(&mut raw_termios);
 
     if let Err(e) = wasi_ext_lib::tcsetattr(
         STDIN as wasi::Fd,
         wasi_ext_lib::TcsetattrAction::TCSANOW,
-        &raw_termios
+        &raw_termios,
     ) {
         Err(Error::Io(io::Error::from_raw_os_error(e)))
     } else {
-        Ok(original_termios) 
+        Ok(original_termios)
     }
 }
 
@@ -240,9 +223,8 @@ pub fn path(filename: &str) -> std::path::PathBuf {
 
 pub fn wait_for_event() -> Result<bool, Error> {
     // returns true if stdin data occurred
-    let mut guard = INTERNAL_EVENT_READER.lock().expect(
-        "Cannot lock internal event source object!"
-    );
+    let mut guard =
+        INTERNAL_EVENT_READER.lock().expect("Cannot lock internal event source object!");
 
     let reader = if let Some(reader) = &mut *guard {
         reader

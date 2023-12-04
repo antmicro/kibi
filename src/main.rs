@@ -10,10 +10,9 @@ use kibi::{Config, Editor, Error};
 /// Any error that occur during the execution of the program will be returned by this function.
 fn main() -> Result<(), Error> {
     #[cfg(target_os = "wasi")]
-    let _ = wasi_ext_lib::chdir(
-        &match wasi_ext_lib::getcwd() {
-            Ok(p) => p,
-            Err(_) => String::from("/")
+    let _ = wasi_ext_lib::chdir(match wasi_ext_lib::getcwd() {
+        Ok(p) => p,
+        Err(_) => String::from("/"),
     });
 
     let mut args = std::env::args();
